@@ -680,12 +680,12 @@ def save_to_custom_csv(lat, long, target_tau, actual_tau,thruster_allocation_met
         'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
         'lat': lat,
         'long': long,
-        'fx': float(target_tau[0]),
-        'fy': float(target_tau[1]),
-        'mz': float(target_tau[2]),
-        'fx_actual': float(actual_tau[0]),
-        'fy_actual': float(actual_tau[1]),
-        'mz_actual': float(actual_tau[2]),
+        'fx': target_tau[0].item(),
+        'fy': target_tau[1].item(),
+        'mz': target_tau[2].item(),
+        'fx_actual': actual_tau[0].item(),
+        'fy_actual': actual_tau[1].item(),
+        'mz_actual': actual_tau[2].item(),
         'thruster allocation': thruster_allocation_method
     }
     
@@ -919,7 +919,7 @@ class Worker(QThread):
             else :
                 if (pid_mode ==  True):
                     sp = np.array([0, 0, 0])     # target
-                    print("x_dist : ", x_distance, "theta_delta", theta_delta)
+                    print("x_dist : ", x_distance,"y_dist : ", y_distance, "theta_delta", theta_delta)
                     theta_delta = shortest_psi(theta_target, yaw)
                     if (abs(theta_delta) >= 10 and (x_distance > 15)):
                         
@@ -939,22 +939,26 @@ class Worker(QThread):
                             pv_theta = 0
                             if (theta_delta > 0 and theta_delta < 90):
                                 pv_x = -x_distance
-                                pv_y = y_distance
+                                pv_y = -y_distance
+                                print("a")
                                 
                                 
                             if (theta_delta > 90 and theta_delta < 180):
                                 pv_x = x_distance
                                 pv_y = -y_distance
+                                print("b")
                                 
                             
                             if (theta_delta > -90 and theta_delta < 0):
                                 pv_x = -x_distance
-                                pv_y = -y_distance
+                                pv_y = y_distance
+                                print("c")
                                 
                                 
                             if (theta_delta > -180 and theta_delta < -90):
                                 pv_x = x_distance
                                 pv_y = y_distance
+                                print("d")
                                 
                                 
                             #print("b")
