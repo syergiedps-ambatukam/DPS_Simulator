@@ -16,6 +16,8 @@ import json
 import time
 import random
 from scipy.optimize import linprog, minimize
+import pandas as pd
+data_saved_buffer = []
 #----------------------------------------------------------------#
 
 import numpy as np
@@ -216,8 +218,8 @@ yaw = -90
 #rpl_long = [105.992613, 105.989277, 105.966657, 105.76885, 105.765563, 105.757095, 105.757006]#[105.992613]
 
 
-rpl_lat = [-5.924208,  -5.924051,  -5.924222,  -5.924041,  -5.924197,   -5.924366,  -5.923524,  -5.923655,  -5.922522,  -5.924804, -5.924394,  -5.924258]
-rpl_long = [105.992613,105.992493, 105.992120,105.991831, 105.991603, 105.991482, 105.991620, 105.991496, 105.990905, 105.991114, 105.992613, 105.992559]
+rpl_lat = [-5.924208,  -5.924051]#,  -5.924222,  -5.924041]
+rpl_long = [105.992613,105.992493]#, 105.992120,105.991831]
 
 rpl_lat_seg = [rpl_lat[0], rpl_lat[1]]
 rpl_long_seg = [rpl_long[0], rpl_long[1]]
@@ -273,10 +275,10 @@ pid_mode = False
 
 
 
-steering1_real = -45
-steering2_real = -135
-steering3_real = 135
-steering4_real = 45
+steering1_real = 0
+steering2_real = 0
+steering3_real = 0
+steering4_real = 0
 
 gas_throttle1_psuedo = 0
 gas_throttle2_psuedo = 0
@@ -888,9 +890,9 @@ class Worker(QThread):
             else :
                 if (pid_mode ==  True):
                     sp = np.array([0, 0, 0])     # target
-                    
+                    print("x_dist : ", x_distance, "theta_delta", theta_delta)
                     theta_delta = shortest_psi(theta_target, yaw)
-                    if (abs(theta_delta) >= 30 and (x_distance > 7)):
+                    if (abs(theta_delta) >= 10 and (x_distance > 15)):
                         
                         pv_x = 0
                         pv_y = 0
@@ -898,8 +900,7 @@ class Worker(QThread):
 
                     else:
                         
-                        
-                        if (target_point < int(len(rpl_lat) -1)) and (x_distance > 10):
+                        if (target_point < int(len(rpl_lat) -1)) and (x_distance > 15):
                             pv_theta = theta_delta
         
                             pv_x = -x_distance
@@ -909,19 +910,23 @@ class Worker(QThread):
                             pv_theta = 0
                             if (theta_delta > 0 and theta_delta < 90):
                                 pv_x = -x_distance
-                                pv_y = -y_distance
+                                pv_y = y_distance
+                                print("a")
                                 
                             if (theta_delta > 90 and theta_delta < 180):
                                 pv_x = x_distance
                                 pv_y = -y_distance
+                                print("b")
                             
                             if (theta_delta > -90 and theta_delta < 0):
                                 pv_x = -x_distance
-                                pv_y = y_distance
+                                pv_y = -y_distance
+                                print("c")
                                 
                             if (theta_delta > -180 and theta_delta < -90):
                                 pv_x = x_distance
                                 pv_y = y_distance
+                                print("d")
                                 
                             #print("b")
 
@@ -1067,8 +1072,8 @@ class Worker(QThread):
             
             #metode 2 nilai thrust disesuaikan dengan Linear Programming berdasarkan posisi azimuth thruster sebelum dikirim
             if (thruster_allocation_method == 1):
-                
-                print(steering1_real, steering2_real, steering3_real, steering4_real)
+               
+                #print(steering1_real, steering2_real, steering3_real, steering4_real)
                 
                 
                 tau_dummy = tau_control
@@ -1101,10 +1106,10 @@ class Worker(QThread):
                     gas_throttle3 = F[2]
                     gas_throttle4 = F[3]
                     actual_b = np.dot(T_nonlinear, F)
-                    print("\nTarget vs Hasil Nyata:")
-                    print(f"Fx: Target {tau_dummy[0]} -> Hasil {actual_b[0]:.3f}")
-                    print(f"Fy: Target {tau_dummy[1]} -> Hasil {actual_b[1]:.3f}")
-                    print(f"Mz: Target {tau_dummy[2]} -> Hasil {actual_b[2]:.3f}")
+                    #print("\nTarget vs Hasil Nyata:")
+                    #print(f"Fx: Target {tau_dummy[0]} -> Hasil {actual_b[0]:.3f}")
+                    #print(f"Fy: Target {tau_dummy[1]} -> Hasil {actual_b[1]:.3f}")
+                    #print(f"Mz: Target {tau_dummy[2]} -> Hasil {actual_b[2]:.3f}")
                     
                     
 
