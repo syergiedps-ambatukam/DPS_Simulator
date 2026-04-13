@@ -15,7 +15,7 @@ import pygame
 import json
 import time
 import random
-from scipy.optimize import linprog
+from scipy.optimize import linprog, minimize
 #----------------------------------------------------------------#
 
 import numpy as np
@@ -423,71 +423,6 @@ lx3 = -1
 ly4 = 0.25
 lx4 = -1
 
-steering = [0,0,0,0]
-throttle = [0,0,0,0]
-lx = np.array([lx1, lx2, lx3, lx4])
-ly = np.array([ly1, ly2, ly3, ly4])
-
-def allocate_throttle(
-    tau_target,          # [Fx, Fy, Mz]
-    steering_rad,        # azimuth angles (rad)
-    lx, ly,              # thruster positions
-    T_min=0.0,
-    T_max=5.0,
-    tol=1e-2
-):
-    """
-    Thruster allocation with feasibility detection
-
-    Returns:
-        dict with:
-        - T
-        - tau_real
-        - error
-        - error_norm
-        - rank_B
-        - status
-    """
-
-    n = len(steering_rad)
-    B = np.zeros((3, n))
-
-    for i in range(n):
-        c = np.cos(steering_rad[i])
-        s = np.sin(steering_rad[i])
-
-        B[0, i] = c
-        B[1, i] = s
-        B[2, i] = lx[i]*s - ly[i]*c
-
-    bounds = (np.ones(n)*T_min, np.ones(n)*T_max)
-
-    res = lsq_linear(B, tau_target, bounds=bounds)
-
-    T = res.x
-    tau_real = B @ T
-
-    error = tau_target - tau_real
-    error_norm = np.linalg.norm(error)
-
-    rank_B = np.linalg.matrix_rank(B)
-
-    if error_norm < tol:
-        status = "FEASIBLE"
-    else:
-        status = "INFEASIBLE"
-
-    return {
-        "T": T,
-        "tau_real": tau_real,
-        "error": error,
-        "error_norm": error_norm,
-        "rank_B": rank_B,
-        "status": status
-    }
-
-
-
 broker="127.0.0.1"
 #broker="mqtt.ardumeka.com"
 #broker = "broker.emqx.io"
@@ -581,12 +516,6 @@ print("d",d)
 
 
 # Matriks State-Space
-'''
-A = np.block([
-    [np.zeros((3, 3)), np.eye(3)],
-    [-np.linalg.inv(m) @ d, -np.linalg.inv(m) @ c]
-])
-'''
 
 A = np.block([
     [np.zeros((3, 3)), np.eye(3)],
@@ -737,7 +666,7 @@ publish_time_prev = 0
 
 print("kalman filter succesfully defined ... ")
 
-thruster_allocation_method = "pseudoinverse"
+thruster_allocation_method = 0
 
 class Worker(QThread):
     
@@ -850,6 +779,8 @@ class Worker(QThread):
             global deg
             global val
             
+            global thruster_allocation_method
+            
             
             steering_array = np.array([steering1_real, steering2_real, steering3_real, steering4_real])
             Fmax = np.array([10, 10, 10, 10])
@@ -912,17 +843,7 @@ class Worker(QThread):
                 tau_y_joystick = roll  * 2.0   # sway force
                 M_z_joystick   = yaw_j * 1.0         # yaw moment
                 
-                #print(tau_x_joystick)
-            
-            #  # Reshape untuk dimensi (3, 1)
-            #print(message)
-
-            #y_ref = np.array([10, -20, sp_yaw]).reshape(-1, 1)
-            
-            # ===== Variabel Optimisasi =====
-            #x = cp.Variable((A.shape[0], N + 1))  # State variables
-            #u = cp.Variable((B.shape[1], N))  # Control inputs
-            
+               
             P = [longitude, latitude]
              
             
@@ -974,15 +895,7 @@ class Worker(QThread):
                         pv_x = 0
                         pv_y = 0
                         pv_theta = theta_delta
-                        '''
-                        if (target_point < int(len(rpl_lat) -1)) and (x_distance > 7):
-                            pv_theta = theta_delta
-                            print("a")
-                        else:
 
-                            pv_theta = 0
-                            print("b")
-                        '''
                     else:
                         
                         
@@ -1056,59 +969,7 @@ class Worker(QThread):
             yaw = y[2][0]
             
             tau_control = u_optimal
-            
-            # Gaya yang harus diberikan oleh setiap thruster Metode 1 dan 2
-            
-            f = T_pseudo_inverse @ tau_control
-
-            '''
-                          ^
-                #####################
-                #==4==         ==1==#
-                #                   #
-                #                   #
-                #                   # -----------> Thruster Orientation
-                #         x         #
-                #                   #
-                #                   #
-                #==3==         ==2==#
-                #####################
-            '''
-
-            try:
-                steering1 = math.atan2(float(f[1]),float(f[0])) * 180/math.pi
-            except:
-                steering1 = 90
-
-            try:
-                steering2= math.atan2(float(f[3]),float(f[2])) * 180/math.pi
-            except:
-                steering2 = 90
-
-            try:
-                steering3 = math.atan2(float(f[5]),float(f[4])) * 180/math.pi
-            except:
-                steering3 = 90
-
-            try:
-                steering4 = math.atan2(float(f[7]),float(f[6])) * 180/math.pi
-            except:
-                steering4 = 90
-            
-        
-            gas_throttle1_psuedo = math.sqrt(float(f[1])**2 + float(f[0])**2)
-            gas_throttle2_psuedo = math.sqrt(float(f[3])**2 + float(f[2])**2)
-            gas_throttle3_psuedo = math.sqrt(float(f[5])**2 + float(f[4])**2)
-            gas_throttle4_psuedo = math.sqrt(float(f[7])**2 + float(f[6])**2)
-            
-            #metode 1 angka yang diberikan langsung dikirim ke thruster 
-            gas_throttle1 = gas_throttle1_psuedo
-            gas_throttle2 = gas_throttle2_psuedo
-            gas_throttle3 = gas_throttle3_psuedo
-            gas_throttle4 = gas_throttle4_psuedo
-            
-            #metode 2 nilai thrust disesuaikan dengan Linear Programming berdasarkan posisi azimuth thruster sebelum dikirim
-
+            #Steering Dynamics
             if (steering1<0):
                 steering1 = 360 + steering1
                 
@@ -1141,7 +1002,116 @@ class Worker(QThread):
                 steering4_real -=1
             if (shortest_psi(steering4, steering4_real)) < 0:
                 steering4_real +=1
+                
+            
+            steering1_real %= 360
+            steering2_real %= 360
+            steering3_real %= 360
+            steering4_real %= 360
+            
+            
+            # Gaya yang harus diberikan oleh setiap thruster Metode 1 dan 2
+            
+            if (thruster_allocation_method == 0 or thruster_allocation_method == 1):
+                f = T_pseudo_inverse @ tau_control
 
+                '''
+                              ^
+                    #####################
+                    #==4==         ==1==#
+                    #                   #
+                    #                   #
+                    #                   # -----------> Thruster Orientation
+                    #         x         #
+                    #                   #
+                    #                   #
+                    #==3==         ==2==#
+                    #####################
+                '''
+
+                try:
+                    steering1 = math.atan2(float(f[1]),float(f[0])) * 180/math.pi
+                except:
+                    steering1 = 90
+
+                try:
+                    steering2= math.atan2(float(f[3]),float(f[2])) * 180/math.pi
+                except:
+                    steering2 = 90
+
+                try:
+                    steering3 = math.atan2(float(f[5]),float(f[4])) * 180/math.pi
+                except:
+                    steering3 = 90
+
+                try:
+                    steering4 = math.atan2(float(f[7]),float(f[6])) * 180/math.pi
+                except:
+                    steering4 = 90
+                
+            
+                gas_throttle1_psuedo = math.sqrt(float(f[1])**2 + float(f[0])**2)
+                gas_throttle2_psuedo = math.sqrt(float(f[3])**2 + float(f[2])**2)
+                gas_throttle3_psuedo = math.sqrt(float(f[5])**2 + float(f[4])**2)
+                gas_throttle4_psuedo = math.sqrt(float(f[7])**2 + float(f[6])**2)
+                
+                #metode 1 angka yang diberikan langsung dikirim ke thruster 
+            if (thruster_allocation_method == 0):
+                gas_throttle1 = gas_throttle1_psuedo
+                gas_throttle2 = gas_throttle2_psuedo
+                gas_throttle3 = gas_throttle3_psuedo
+                gas_throttle4 = gas_throttle4_psuedo
+                
+            
+            
+            
+            #metode 2 nilai thrust disesuaikan dengan Linear Programming berdasarkan posisi azimuth thruster sebelum dikirim
+            if (thruster_allocation_method == 1):
+                
+                print(steering1_real, steering2_real, steering3_real, steering4_real)
+                
+                
+                tau_dummy = tau_control
+                T_nonlinear = np.array([
+                        [np.cos(np.deg2rad(steering1_real)), np.cos(np.deg2rad(steering2_real)), np.cos(np.deg2rad(steering3_real)), np.cos(np.deg2rad(steering4_real))],         # Fx
+                        [np.sin(np.deg2rad(steering1_real)), np.sin(np.deg2rad(steering2_real)), np.sin(np.deg2rad(steering3_real)), np.sin(np.deg2rad(steering4_real))],         # Fy
+                        # Ganti baris Mz di T_nonlinear menjadi:
+                        [
+                            ((lx1 * np.sin(np.deg2rad(steering1_real))) - (ly1 * np.cos(np.deg2rad(steering1_real)))),
+                            ((lx2 * np.sin(np.deg2rad(steering2_real))) - (ly2 * np.cos(np.deg2rad(steering2_real)))),
+                            ((lx3 * np.sin(np.deg2rad(steering3_real))) - (ly3 * np.cos(np.deg2rad(steering3_real)))),
+                            ((lx4 * np.sin(np.deg2rad(steering4_real))) - (ly4 * np.cos(np.deg2rad(steering4_real))))
+                        ]   # Mz
+                    ])
+                print(T_nonlinear)
+                tau_dummy = tau_control.flatten()
+                def objective(x):
+                    error = np.dot(T_nonlinear, x) - tau_dummy
+                    
+                    return np.sum(error**2) # Least squares error
+                
+                bounds = [(0, 5) for _ in range(4)]
+                x_guess = np.array([0, 0, 0, 0])
+                res = minimize(objective, x_guess, bounds=bounds, method='L-BFGS-B')
+                if res.success:
+                    F = res.x
+                    
+                    gas_throttle1 = F[0]
+                    gas_throttle2 = F[1]
+                    gas_throttle3 = F[2]
+                    gas_throttle4 = F[3]
+                    actual_b = np.dot(T_nonlinear, F)
+                    print("\nTarget vs Hasil Nyata:")
+                    print(f"Fx: Target {tau_dummy[0]} -> Hasil {actual_b[0]:.3f}")
+                    print(f"Fy: Target {tau_dummy[1]} -> Hasil {actual_b[1]:.3f}")
+                    print(f"Mz: Target {tau_dummy[2]} -> Hasil {actual_b[2]:.3f}")
+                    
+                    
+
+
+
+            
+            
             gas_throttle1_real = (1 * gas_throttle1)
             gas_throttle2_real = (1 * gas_throttle2)
             gas_throttle3_real =(1 * gas_throttle3)
@@ -1341,7 +1311,7 @@ class table(QObject):
     @pyqtSlot(result=float)
     def gas_throttle4_real(self):return round(gas_throttle4_real,3)
     
-    @pyqtSlot(str)
+    @pyqtSlot(int)
     def thruster_allocation_method (self, msg):
         global thruster_allocation_method
         thruster_allocation_method = msg
