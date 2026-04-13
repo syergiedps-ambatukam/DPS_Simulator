@@ -18,6 +18,8 @@ import random
 from scipy.optimize import linprog, minimize
 import pandas as pd
 data_saved_buffer = []
+from datetime import datetime
+import os
 #----------------------------------------------------------------#
 
 import numpy as np
@@ -218,8 +220,8 @@ yaw = -90
 #rpl_long = [105.992613, 105.989277, 105.966657, 105.76885, 105.765563, 105.757095, 105.757006]#[105.992613]
 
 
-rpl_lat = [-5.924208,  -5.924051]#,  -5.924222,  -5.924041]
-rpl_long = [105.992613,105.992493]#, 105.992120,105.991831]
+rpl_lat = [-5.924208,  -5.924051,  -5.924222,  -5.924041]
+rpl_long = [105.992613,105.992493, 105.992120,105.991831]
 
 rpl_lat_seg = [rpl_lat[0], rpl_lat[1]]
 rpl_long_seg = [rpl_long[0], rpl_long[1]]
@@ -670,6 +672,33 @@ print("kalman filter succesfully defined ... ")
 
 thruster_allocation_method = 0
 
+filename = "recording.csv"
+
+
+def save_to_custom_csv(lat, long, target_tau, actual_tau,thruster_allocation_method, filename):
+    data = {
+        'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
+        'lat': lat,
+        'long': long,
+        'fx': float(target_tau[0]),
+        'fy': float(target_tau[1]),
+        'mz': float(target_tau[2]),
+        'fx_actual': float(actual_tau[0]),
+        'fy_actual': float(actual_tau[1]),
+        'mz_actual': float(actual_tau[2]),
+        'thruster allocation': thruster_allocation_method
+    }
+    
+    df = pd.DataFrame([data])
+    
+    # Cek apakah file sudah ada
+    if not os.path.isfile(filename):
+        df.to_csv(filename, index=False)
+    else:
+        df.to_csv(filename, mode='a', header=False, index=False)
+
+
+
 class Worker(QThread):
     
     state_updated = pyqtSignal(float, float, float)  # x, y, yaw
@@ -911,22 +940,22 @@ class Worker(QThread):
                             if (theta_delta > 0 and theta_delta < 90):
                                 pv_x = -x_distance
                                 pv_y = y_distance
-                                print("a")
+                                
                                 
                             if (theta_delta > 90 and theta_delta < 180):
                                 pv_x = x_distance
                                 pv_y = -y_distance
-                                print("b")
+                                
                             
                             if (theta_delta > -90 and theta_delta < 0):
                                 pv_x = -x_distance
                                 pv_y = -y_distance
-                                print("c")
+                                
                                 
                             if (theta_delta > -180 and theta_delta < -90):
                                 pv_x = x_distance
                                 pv_y = y_distance
-                                print("d")
+                                
                                 
                             #print("b")
 
@@ -1154,6 +1183,13 @@ class Worker(QThread):
             '''
             publish_time = time.time() - publish_time_prev
             if (publish_time > 0.2):
+                
+                if(pid_mode == True):
+                    save_to_custom_csv(latitude, longitude, u_optimal, u_real,thruster_allocation_method, filename)
+                
+                
+                
+                
                 #print("tick")
                 client.publish("propeller1",str(gas_throttle1 *10))
                 #client.publish("propeller2",str(gas_throttle2*10))
@@ -1345,6 +1381,14 @@ class table(QObject):
     def val(self):
         return val.tolist()
     
+    
+    @pyqtSlot(str)
+    def filename(self, msg):
+        global filename
+        filename = msg
+        print(filename)
+        
+        
     @pyqtSlot(int)
     def tick(self, tick):
         pass
