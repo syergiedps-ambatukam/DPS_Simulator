@@ -670,6 +670,19 @@ T_pseudo_inverse = W_inv @ T_transpose @ TWT_inv
 tau_control = np.array([0, 0, 10])
 
 
+T_nonlinear = np.array([
+    [np.cos(np.deg2rad(steering1)), np.cos(np.deg2rad(steering2)), np.cos(np.deg2rad(steering3)), np.cos(np.deg2rad(steering4))],         # Fx
+    [np.sin(np.deg2rad(steering1)), np.sin(np.deg2rad(steering2)), np.sin(np.deg2rad(steering3)), np.sin(np.deg2rad(steering4))],         # Fy
+    # Ganti baris Mz di T_nonlinear menjadi:
+    [
+        ((lx1 * np.sin(np.deg2rad(steering1))) - (ly1 * np.cos(np.deg2rad(steering1)))),
+        ((lx2 * np.sin(np.deg2rad(steering2))) - (ly2 * np.cos(np.deg2rad(steering2)))),
+        ((lx3 * np.sin(np.deg2rad(steering3))) - (ly3 * np.cos(np.deg2rad(steering3)))),
+        ((lx4 * np.sin(np.deg2rad(steering4))) - (ly4 * np.cos(np.deg2rad(steering4))))
+    ]   # Mz
+])
+
+
 tau_x = 0
 tau_y = 0
 M_z = 0
@@ -723,6 +736,8 @@ publish_time = 0
 publish_time_prev = 0
 
 print("kalman filter succesfully defined ... ")
+
+thruster_allocation_method = "pseudoinverse"
 
 class Worker(QThread):
     
@@ -1042,10 +1057,10 @@ class Worker(QThread):
             
             tau_control = u_optimal
             
-            # Gaya yang harus diberikan oleh setiap thruster
+            # Gaya yang harus diberikan oleh setiap thruster Metode 1 dan 2
             
             f = T_pseudo_inverse @ tau_control
-            #print("f des : ", f.flatten())
+
             '''
                           ^
                 #####################
@@ -1064,35 +1079,36 @@ class Worker(QThread):
                 steering1 = math.atan2(float(f[1]),float(f[0])) * 180/math.pi
             except:
                 steering1 = 90
-                
-            gas_throttle1_psuedo = math.sqrt(float(f[1])**2 + float(f[0])**2)
-
 
             try:
                 steering2= math.atan2(float(f[3]),float(f[2])) * 180/math.pi
             except:
                 steering2 = 90
 
-            gas_throttle2_psuedo = math.sqrt(float(f[3])**2 + float(f[2])**2)
-
             try:
                 steering3 = math.atan2(float(f[5]),float(f[4])) * 180/math.pi
             except:
                 steering3 = 90
-            gas_throttle3_psuedo = math.sqrt(float(f[5])**2 + float(f[4])**2)
-
 
             try:
                 steering4 = math.atan2(float(f[7]),float(f[6])) * 180/math.pi
             except:
                 steering4 = 90
+            
+        
+            gas_throttle1_psuedo = math.sqrt(float(f[1])**2 + float(f[0])**2)
+            gas_throttle2_psuedo = math.sqrt(float(f[3])**2 + float(f[2])**2)
+            gas_throttle3_psuedo = math.sqrt(float(f[5])**2 + float(f[4])**2)
             gas_throttle4_psuedo = math.sqrt(float(f[7])**2 + float(f[6])**2)
             
+            #metode 1 angka yang diberikan langsung dikirim ke thruster 
+            gas_throttle1 = gas_throttle1_psuedo
+            gas_throttle2 = gas_throttle2_psuedo
+            gas_throttle3 = gas_throttle3_psuedo
+            gas_throttle4 = gas_throttle4_psuedo
             
-            
+            #metode 2 nilai thrust disesuaikan dengan Linear Programming berdasarkan posisi azimuth thruster sebelum dikirim
 
-            
-            
             if (steering1<0):
                 steering1 = 360 + steering1
                 
@@ -1105,14 +1121,6 @@ class Worker(QThread):
             if (steering4<0):
                 steering4 = 360 + steering4
             
-            '''
-            steering1_real = (0.95 * steering1_real) + (0.05 * steering1)
-            steering2_real = (0.95 * steering2_real) + (0.05 * steering2)
-            steering3_real = (0.95 * steering3_real) + (0.05 * steering3)
-            steering4_real = (0.95 * steering4_real) + (0.05 * steering4)
-
-            
-            '''
             #print(shortest_psi(steering1, steering1_real)) untuk steering dps real
             if (shortest_psi(steering1, steering1_real)) > 0:
                 steering1_real -=1
@@ -1134,95 +1142,6 @@ class Worker(QThread):
             if (shortest_psi(steering4, steering4_real)) < 0:
                 steering4_real +=1
 
-            
-            '''
-            
-            #untuk servo ((steering1 - steering1_real)) 
-            
-            if (steering1 - steering1_real) < 0:
-                steering1_real -=1
-            if (steering1 - steering1_real) > 0:
-                steering1_real +=1
-                
-            if (steering2 - steering2_real) < 0:
-                steering2_real -=1
-            if (steering2 - steering2_real) > 0:
-                steering2_real +=1
-                
-            if (steering3 - steering3_real) < 0:
-                steering3_real -=1
-            if (steering3 - steering3_real) > 0:
-                steering3_real +=1
-            
-            if (steering4 - steering4_real) < 0:
-                steering4_real -=1
-            if (steering4 - steering4_real) > 0:
-                steering4_real +=1
-            
-            
-            steering1_real = (0.5 * steering1_real) + (0.5 * steering1)
-            steering2_real = (0.5 * steering2_real) + (0.5 * steering2)
-            steering3_real = (0.5 * steering3_real) + (0.5 * steering3)
-            steering4_real = (0.5 * steering4_real) + (0.5 * steering4)
-
-            '''
-
-
-                
-            steering = [steering1_real, steering2_real, steering3_real, steering4_real]
-            
-            result = allocate_throttle(
-                u_optimal.flatten(),
-                steering,
-                lx,
-                ly,
-                T_min=0,
-                T_max=5
-            )
-            
-            throttle = result["T"]
-            
-            for i, t in enumerate(throttle):
-                if(i == 0):
-                    gas_throttle1_qp = t
-                if(i == 1):
-                    gas_throttle2_qp = t
-                if(i == 2):
-                    gas_throttle3_qp = t
-                if(i == 3):
-                    gas_throttle4_qp = t
-                #print(f"T{i+1} = {t:.3f}")
-                
-                
-            if (abs(shortest_psi(steering1, steering1_real)) < 2 and
-                abs(shortest_psi(steering2, steering2_real)) < 2 and
-                abs(shortest_psi(steering3, steering3_real)) < 2 and
-                abs(shortest_psi(steering4, steering4_real)) < 2):
-                #print("psuedoinverse")
-                gas_throttle1 = gas_throttle1_psuedo
-                gas_throttle2 = gas_throttle2_psuedo
-                gas_throttle3 = gas_throttle3_psuedo
-                gas_throttle4 = gas_throttle4_psuedo
-                
-            else:
-                #print("quadratic-programming")
-                '''
-                gas_throttle1 = gas_throttle1_qp
-                gas_throttle2 = gas_throttle2_qp
-                gas_throttle3 = gas_throttle3_qp
-                gas_throttle4 = gas_throttle4_qp
-                
-                
-                gas_throttle1 = 0
-                gas_throttle2 = 0
-                gas_throttle3 = 0
-                gas_throttle4 = 0
-                '''
-                gas_throttle1 = gas_throttle1_psuedo
-                gas_throttle2 = gas_throttle2_psuedo
-                gas_throttle3 = gas_throttle3_psuedo
-                gas_throttle4 = gas_throttle4_psuedo
-            
             gas_throttle1_real = (1 * gas_throttle1)
             gas_throttle2_real = (1 * gas_throttle2)
             gas_throttle3_real =(1 * gas_throttle3)
@@ -1239,9 +1158,6 @@ class Worker(QThread):
             fy3_real = gas_throttle3_real * math.sin(steering3_real * math.pi/180)
             fy4_real = gas_throttle4_real * math.sin(steering4_real * math.pi/180)
             
-            
-            #u_real = T @ np.array([fx1_real, fy1_real, fx2_real, fy2_real, fx3_real, fy3_real, fx4_real, fy4_real])
-            #print("f real : ", np.array([fx1_real, fy1_real, fx2_real, fy2_real, fx3_real, fy3_real, fx4_real, fy4_real]))
             
             f_real = np.array([
                 fx1_real, fy1_real,
@@ -1425,7 +1341,11 @@ class table(QObject):
     @pyqtSlot(result=float)
     def gas_throttle4_real(self):return round(gas_throttle4_real,3)
     
-    
+    @pyqtSlot(str)
+    def thruster_allocation_method (self, msg):
+        global thruster_allocation_method
+        thruster_allocation_method = msg
+        print(thruster_allocation_method)
     
     @pyqtSlot(str)
     def pop(self, msg):
