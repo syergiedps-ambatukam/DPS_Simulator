@@ -220,8 +220,8 @@ yaw = -90
 #rpl_long = [105.992613, 105.989277, 105.966657, 105.76885, 105.765563, 105.757095, 105.757006]#[105.992613]
 
 
-rpl_lat = [-5.924208,  -5.924051,  -5.924222,  -5.924041]
-rpl_long = [105.992613,105.992493, 105.992120,105.991831]
+rpl_lat = [-5.924208,-5.923596]#[-5.924208,  -5.924051,  -5.924222,  -5.924041]
+rpl_long = [105.992613, 105.991620]#[105.992613,105.992493, 105.992120,105.991831]
 
 rpl_lat_seg = [rpl_lat[0], rpl_lat[1]]
 rpl_long_seg = [rpl_long[0], rpl_long[1]]
@@ -934,7 +934,7 @@ class Worker(QThread):
         
                             pv_x = -x_distance
                             pv_y = -y_distance
-                            #print("a")
+                            print("nb")
                         else:
                             pv_theta = 0
                             if (theta_delta > 0 and theta_delta < 90):
@@ -951,13 +951,13 @@ class Worker(QThread):
                             
                             if (theta_delta > -90 and theta_delta < 0):
                                 pv_x = -x_distance
-                                pv_y = y_distance
+                                pv_y = -y_distance
                                 print("c")
                                 
                                 
                             if (theta_delta > -180 and theta_delta < -90):
                                 pv_x = x_distance
-                                pv_y = y_distance
+                                pv_y = -y_distance
                                 print("d")
                                 
                                 
@@ -1021,6 +1021,14 @@ class Worker(QThread):
                 steering4 = 360 + steering4
             
             #print(shortest_psi(steering1, steering1_real)) untuk steering dps real
+            
+            #ideal condition
+            steering1_real = steering1
+            steering2_real = steering2
+            steering3_real = steering3
+            steering4_real = steering4
+            
+            '''
             if (shortest_psi(steering1, steering1_real)) > 0:
                 steering1_real -=1
             if (shortest_psi(steering1, steering1_real)) < 0:
@@ -1040,8 +1048,8 @@ class Worker(QThread):
                 steering4_real -=1
             if (shortest_psi(steering4, steering4_real)) < 0:
                 steering4_real +=1
-                
-            
+             
+            '''
             steering1_real %= 360
             steering2_real %= 360
             steering3_real %= 360
